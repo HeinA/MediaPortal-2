@@ -103,6 +103,7 @@ namespace MediaPortal.UI.SkinEngine.GUI
       ServiceRegistration.Set<IScreenControl>(this);
 
       InitializeComponent();
+      Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
       CheckForIllegalCrossThreadCalls = false;
 
       StartupSettings startupSettings = ServiceRegistration.Get<ISettingsManager>().Load<StartupSettings>();
