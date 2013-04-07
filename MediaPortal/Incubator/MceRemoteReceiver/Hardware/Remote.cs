@@ -1,35 +1,61 @@
-#region Copyright (C) 2005-2011 Team MediaPortal
+#region Copyright (C) 2007-2013 Team MediaPortal
 
-// Copyright (C) 2005-2011 Team MediaPortal
-// http://www.team-mediaportal.com
-// 
-// MediaPortal is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 2 of the License, or
-// (at your option) any later version.
-// 
-// MediaPortal is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with MediaPortal. If not, see <http://www.gnu.org/licenses/>.
+/*
+    Copyright (C) 2007-2013 Team MediaPortal
+    http://www.team-mediaportal.com
+
+    This file is part of MediaPortal 2
+
+    MediaPortal 2 is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    MediaPortal 2 is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with MediaPortal 2. If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #endregion
 
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using MediaPortal.GUI.Library;
 using Microsoft.Win32.SafeHandles;
 
 #pragma warning disable 618
 
-namespace MediaPortal.Hardware
+namespace MediaPortal.Plugins.MceRemoteReceiver.Hardware
 {
   public class Remote : Device
   {
+    #region Consts
+
+    const int VAL_END_READ = 25;
+    const int DEV_BUF_INDEX = 9;
+
+    #endregion
+
+    #region Fields
+
+    private static Remote _deviceSingleton;
+    private int _doubleClickTime = -1;
+    private int _doubleClickTick = 0;
+    private RemoteButton _doubleClickButton;
+
+    #endregion Fields
+
+    #region Events
+
+    public static RemoteEventHandler Click = null;
+    public static RemoteEventHandler DoubleClick = null;
+
+    #endregion Events
+
     #region Constructor
 
     static Remote()
@@ -63,7 +89,7 @@ namespace MediaPortal.Hardware
       }
       catch (Exception e)
       {
-        Log.Info("Remote.Init: {0}", e.Message);
+        MceRemoteReceiver.LogInfo("Init: {0}", e.Message);
       }
     }
 
@@ -77,7 +103,7 @@ namespace MediaPortal.Hardware
       }
       if (LogVerbose)
       {
-        Log.Info("MCE: Using: {0}", devicePath);
+        MceRemoteReceiver.LogInfo("Using {0}", devicePath);
       }
 
       SafeFileHandle deviceHandle = CreateFile(devicePath, FileAccess.Read, FileShare.ReadWrite, 0, FileMode.Open,
@@ -99,22 +125,10 @@ namespace MediaPortal.Hardware
     {
       try
       {
-        int valEndRead;
-        int devBufIndex;
-        if (OSInfo.OSInfo.Win7OrLater())
-        {
-          valEndRead = 25;
-          devBufIndex = 9;
-        }
-        else
-        {
-          valEndRead = 13;
-          devBufIndex = 5;
-        }
 
-        if (_deviceStream.EndRead(asyncResult) == valEndRead && _deviceBuffer[1] == 1)
+        if (_deviceStream.EndRead(asyncResult) == VAL_END_READ && _deviceBuffer[1] == 1)
         {
-          if (_deviceBuffer[devBufIndex] == (int)_doubleClickButton &&
+          if (_deviceBuffer[DEV_BUF_INDEX] == (int) _doubleClickButton &&
               Environment.TickCount - _doubleClickTick <= _doubleClickTime)
           {
             if (DoubleClick != null)
@@ -124,7 +138,7 @@ namespace MediaPortal.Hardware
           }
           else
           {
-            _doubleClickButton = (RemoteButton)_deviceBuffer[devBufIndex];
+            _doubleClickButton = (RemoteButton) _deviceBuffer[DEV_BUF_INDEX];
             _doubleClickTick = Environment.TickCount;
 
             if (Click != null)
@@ -136,7 +150,9 @@ namespace MediaPortal.Hardware
         // begin another asynchronous read from the device
         _deviceStream.BeginRead(_deviceBuffer, 0, _deviceBuffer.Length, new AsyncCallback(OnReadComplete), null);
       }
-      catch (Exception) {}
+      catch (Exception)
+      {
+      }
     }
 
     private void OnSettingsChanged()
@@ -152,21 +168,5 @@ namespace MediaPortal.Hardware
     private static extern int GetDoubleClickTime();
 
     #endregion Interop
-
-    #region Events
-
-    public static RemoteEventHandler Click = null;
-    public static RemoteEventHandler DoubleClick = null;
-
-    #endregion Events
-
-    #region Members
-
-    private static Remote _deviceSingleton;
-    private int _doubleClickTime = -1;
-    private int _doubleClickTick = 0;
-    private RemoteButton _doubleClickButton;
-
-    #endregion Members
   }
 }

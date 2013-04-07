@@ -1,36 +1,49 @@
-#region Copyright (C) 2005-2011 Team MediaPortal
+#region Copyright (C) 2007-2013 Team MediaPortal
 
-// Copyright (C) 2005-2011 Team MediaPortal
-// http://www.team-mediaportal.com
-// 
-// MediaPortal is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 2 of the License, or
-// (at your option) any later version.
-// 
-// MediaPortal is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with MediaPortal. If not, see <http://www.gnu.org/licenses/>.
+/*
+    Copyright (C) 2007-2013 Team MediaPortal
+    http://www.team-mediaportal.com
+
+    This file is part of MediaPortal 2
+
+    MediaPortal 2 is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    MediaPortal 2 is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with MediaPortal 2. If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #endregion
 
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
-using System.Xml;
-using MediaPortal.Configuration;
-using MediaPortal.GUI.Library;
 using Microsoft.Win32.SafeHandles;
 
-namespace MediaPortal.Hardware
+namespace MediaPortal.Plugins.MceRemoteReceiver.Hardware
 {
   public abstract class Device
   {
+    #region Members
+
+    protected Guid _deviceClass;
+    protected FileStream _deviceStream;
+    protected byte[] _deviceBuffer;
+    internal DeviceWatcher _deviceWatcher;
+    private static bool _logVerbose;
+    internal IEnumerable<string> _eHomeTransceivers;
+
+    #endregion Members
+
     #region Implementation
 
     protected void OnDeviceArrival(object sender, EventArgs e)
@@ -78,7 +91,9 @@ namespace MediaPortal.Hardware
 
     protected string FindDevice(Guid classGuid)
     {
-      LoadDeviceXml();
+      var list = MceRemoteReceiver._eHomeTransceivers;
+      if (list != null)
+        _eHomeTransceivers = list.Select(t => t.DeviceID);
 
       IntPtr handle = SetupDiGetClassDevs(ref classGuid, 0, 0, 0x12);
 
@@ -138,7 +153,7 @@ namespace MediaPortal.Hardware
 
         if (LogVerbose)
         {
-          Log.Info("MCE: Found: {0}", deviceInterfaceDetailData.DevicePath);
+          MceRemoteReceiver.LogInfo("Found: {0}", deviceInterfaceDetailData.DevicePath);
         }
 
         foreach (string deviceId in _eHomeTransceivers)
@@ -159,42 +174,6 @@ namespace MediaPortal.Hardware
         }
       }
       return devicePath;
-    }
-
-    protected void LoadDeviceXml()
-    {
-      if (_eHomeTransceivers == null)
-      {
-        _eHomeTransceivers = new ArrayList();
-
-        string deviceXmlFile = Config.GetFile(Config.Dir.Config, "eHome Infrared Transceiver List XP.xml");
-
-        if (File.Exists(deviceXmlFile))
-        {
-          try
-          {
-            XmlDocument source = new XmlDocument();
-            source.Load(deviceXmlFile);
-            XmlNodeList transceiverNodes = source.SelectNodes("/ehomelist/transceiver");
-
-            foreach (XmlNode transceiverNode in transceiverNodes)
-            {
-              XmlAttribute att = transceiverNode.Attributes["deviceid"];
-              _eHomeTransceivers.Add(att.Value);
-            }
-          }
-          catch (XmlException)
-          {
-            Log.Error("MCE: Error in XML file " + deviceXmlFile, "error");
-            _eHomeTransceivers = null;
-            return;
-          }
-        }
-        else
-        {
-          Log.Error("MCE: Cannot load transceiver list file " + deviceXmlFile, "error");
-        }
-      }
     }
 
     #endregion Implementation
@@ -283,17 +262,6 @@ namespace MediaPortal.Hardware
     public static DeviceEventHandler DeviceRemoval = null;
 
     #endregion Events
-
-    #region Members
-
-    protected Guid _deviceClass;
-    protected FileStream _deviceStream;
-    protected byte[] _deviceBuffer;
-    internal DeviceWatcher _deviceWatcher;
-    private static bool _logVerbose;
-    internal ArrayList _eHomeTransceivers;
-
-    #endregion Members
 
     #region Properties
 
